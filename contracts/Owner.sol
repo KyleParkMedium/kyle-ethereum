@@ -19,12 +19,25 @@ contract Owner {
      *  Storage
      */
     mapping(address => bool) public isOwner;
+    address public admin;
     address[] public owners;
     uint public required;
 
     /*
+     *  Constructor
+     */
+    constructor() {
+        admin = msg.sender;
+    }
+
+    /*
      *  Modifiers
      */
+    modifier isAdmin() {
+        require(msg.sender == admin);
+        _;
+    }
+
     modifier onlyWallet() {
         require(msg.sender == address(this));
         _;
@@ -63,9 +76,7 @@ contract Owner {
         if (msg.value > 0) emit Deposit(msg.sender, msg.value);
     }
 
-    receive() external payable {
-        // 처리할 내용을 작성하세요
-    }
+    receive() external payable {}
 
     /// @dev Allows to add a new owner. Transaction has to be sent by wallet.
     /// @param owner Address of new owner.
@@ -83,17 +94,33 @@ contract Owner {
         emit OwnerAddition(owner);
     }
 
+    /// @dev Allows to add new owners. Transaction has to be sent by wallet.
+    /// @param _owners Address of new owners.
+    function addOwners(address[] memory _owners) public onlyWallet {
+        for (uint i = 0; i < _owners.length; i++) {
+            require(!isOwner[_owners[i]] && _owners[i] != address(0));
+            //     validRequirement(owners.length + 1, required)
+            isOwner[_owners[i]] = true;
+            owners.push(_owners[i]);
+            emit OwnerAddition(_owners[i]);
+        }
+    }
+
     /// @dev Allows to remove an owner. Transaction has to be sent by wallet.
     /// @param owner Address of owner.
     function removeOwner(address owner) public onlyWallet ownerExists(owner) {
         isOwner[owner] = false;
+
+        for (uint i = 0; i < isOwner.length; i++) {}
+        // 확인해야함
+        if (required > owners.length) changeRequirement(owners.length);
+
         for (uint i = 0; i < owners.length; i++)
             if (owners[i] == owner) {
                 delete owners[i];
                 break;
             }
-        // 확인해야함
-        if (required > owners.length) changeRequirement(owners.length);
+
         emit OwnerRemoval(owner);
     }
 
@@ -113,6 +140,18 @@ contract Owner {
         isOwner[newOwner] = true;
         emit OwnerRemoval(owner);
         emit OwnerAddition(newOwner);
+    }
+
+    /// @dev Allows to add required.
+    /// @param _required Number of required.
+    function addRequired(uint _required) public isAdmin {
+        changeRequirement(_required);
+    }
+
+    /// @dev Allows to sub required.
+    /// @param _required Number of required.
+    function subRequired(uint _required) public isAdmin {
+        changeRequirement(required - _required);
     }
 
     /// @dev Allows to change the number of required confirmations. Transaction has to be sent by wallet.
